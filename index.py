@@ -1,9 +1,12 @@
 import asyncio
 import logging
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
+
+import uvicorn
+from fastapi import BackgroundTasks, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel, Field
 
 # ---------------------------------------------------------------------------
 # Logging Setup
@@ -12,70 +15,79 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
-logger = logging.getLogger("AIAutomationEngine")
-
+logger = logging.getLogger("AIAutomationServer")
 
 # ---------------------------------------------------------------------------
-# Core Data Models
+# Pydantic Schemas (API Request / Response models)
 # ---------------------------------------------------------------------------
-@dataclass
+class AutomationRequest(BaseModel):
+    user_id: str = Field(..., example="usr_9021")
+    user_feedback: str = Field(..., example="I love the new UI update! It makes automation so easy.")
+
+class AIAnalysisResult(BaseModel):
+    sentiment: str
+    confidence: float
+    summary: str
+
+class WorkflowResponse(BaseModel):
+    workflow_id: str
+    status: str
+    payload: Dict[str, Any]
+    results: Dict[str, Any]
+    errors: List[str]
+    created_at: str
+
+# ---------------------------------------------------------------------------
+# Core Workflow State
+# ---------------------------------------------------------------------------
 class WorkflowContext:
-    """Carries dynamic state and execution metadata across workflow steps."""
-    workflow_id: str = field(default_factory=lambda: str(uuid4()))
-    payload: Dict[str, Any] = field(default_factory=dict)
-    results: Dict[str, Any] = field(default_factory=dict)
-    errors: List[str] = field(default_factory=list)
-    created_at: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    def __init__(self, payload: Dict[str, Any]):
+        self.workflow_id: str = str(uuid4())
+        self.payload: Dict[str, Any] = payload
+        self.results: Dict[str, Any] = {}
+        self.errors: List[str] = []
+        self.status: str = "PENDING"
+        self.created_at: str = datetime.now(timezone.utc).isoformat()
 
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "workflow_id": self.workflow_id,
+            "status": self.status,
+            "payload": self.payload,
+            "results": self.results,
+            "errors": self.errors,
+            "created_at": self.created_at,
+        }
+
+# In-memory storage for workflow jobs
+JOBS_DB: Dict[str, WorkflowContext] = {}
 
 # ---------------------------------------------------------------------------
-# Abstract Base Class for Steps
+# Modular Workflow Steps
 # ---------------------------------------------------------------------------
 class BaseStep:
-    """Base interface for all automation pipeline steps."""
-
     def __init__(self, name: str):
         self.name = name
 
     async def execute(self, context: WorkflowContext) -> WorkflowContext:
-        raise NotImplementedError("Steps must implement the execute method.")
+        raise NotImplementedError
 
-
-# ---------------------------------------------------------------------------
-# Concrete AI / Automation Steps
-# ---------------------------------------------------------------------------
 class IngestionStep(BaseStep):
-    """Simulates fetching or ingesting raw operational data."""
-
-    def __init__(self, name: str, source_data: Dict[str, Any]):
-        super().__init__(name)
-        self.source_data = source_data
-
     async def execute(self, context: WorkflowContext) -> WorkflowContext:
-        logger.info(f"[{self.name}] Ingesting data from source...")
-        await asyncio.sleep(0.5)  # Simulate network latency
-        context.payload.update(self.source_data)
-        logger.info(f"[{self.name}] Ingested {len(self.source_data)} fields.")
+        logger.info(f"[{self.name}] Processing incoming API request payload...")
+        await asyncio.sleep(0.2)
         return context
 
-
 class SentimentAnalysisAIStep(BaseStep):
-    """Simulates an AI model call to evaluate sentiment and topic."""
-
     async def _mock_llm_inference(self, text: str) -> Dict[str, Any]:
-        await asyncio.sleep(1.0)  # Simulate API inference call
+        await asyncio.sleep(1.0)  # Simulate AI model latency
         text_lower = text.lower()
-        if "great" in text_lower or "love" in text_lower:
-            sentiment = "positive"
-            score = 0.92
-        elif "issue" in text_lower or "bug" in text_lower or "broken" in text_lower:
-            sentiment = "negative"
-            score = 0.85
+        if any(w in text_lower for w in ["great", "love", "awesome", "good"]):
+            sentiment, score = "positive", 0.94
+        elif any(w in text_lower for w in ["issue", "bug", "broken", "hate"]):
+            sentiment, score = "negative", 0.88
         else:
-            sentiment = "neutral"
-            score = 0.50
+            sentiment, score = "neutral", 0.50
 
         return {
             "sentiment": sentiment,
@@ -84,123 +96,122 @@ class SentimentAnalysisAIStep(BaseStep):
         }
 
     async def execute(self, context: WorkflowContext) -> WorkflowContext:
-        logger.info(f"[{self.name}] Processing payload with AI model...")
+        logger.info(f"[{self.name}] Analyzing sentiment via AI...")
         input_text = context.payload.get("user_feedback", "")
         
         if not input_text:
-            context.errors.append(f"{self.name}: Missing 'user_feedback' in payload.")
+            context.errors.append(f"{self.name}: Empty feedback string provided.")
             return context
 
         ai_output = await self._mock_llm_inference(input_text)
         context.results["ai_analysis"] = ai_output
-        logger.info(f"[{self.name}] Sentiment analysis complete: {ai_output['sentiment']}")
         return context
 
-
 class DecisionRoutingStep(BaseStep):
-    """Evaluates AI insights and routes execution dynamically."""
-
-    def __init__(self, name: str, action_map: Dict[str, Callable[[WorkflowContext], Any]]):
-        super().__init__(name)
-        self.action_map = action_map
-
     async def execute(self, context: WorkflowContext) -> WorkflowContext:
-        logger.info(f"[{self.name}] Evaluating routing rules...")
+        logger.info(f"[{self.name}] Routing actions based on sentiment...")
         ai_data = context.results.get("ai_analysis", {})
         sentiment = ai_data.get("sentiment", "neutral")
 
-        action = self.action_map.get(sentiment)
-        if action:
-            logger.info(f"[{self.name}] Routing triggered for branch: '{sentiment}'")
-            if asyncio.iscoroutinefunction(action):
-                await action(context)
-            else:
-                action(context)
+        if sentiment == "positive":
+            context.results["routed_action"] = "Logged feedback to marketing showcase."
+        elif sentiment == "negative":
+            context.results["routed_action"] = "Escalated high-priority ticket to Zendesk/Support."
         else:
-            logger.warning(f"[{self.name}] No specific action found for: '{sentiment}'")
+            context.results["routed_action"] = "Archived for standard review."
 
         return context
 
-
 # ---------------------------------------------------------------------------
-# Workflow Orchestrator
+# Pipeline Engine
 # ---------------------------------------------------------------------------
-class AutomationPipeline:
-    """Orchestrates step execution with error handling and status tracking."""
+class AutomationEngine:
+    def __init__(self):
+        self.steps: List[BaseStep] = [
+            IngestionStep("Ingestion"),
+            SentimentAnalysisAIStep("AI Analysis"),
+            DecisionRoutingStep("Action Router")
+        ]
 
-    def __init__(self, name: str):
-        self.name = name
-        self.steps: List[BaseStep] = []
-
-    def add_step(self, step: BaseStep) -> "AutomationPipeline":
-        self.steps.append(step)
-        return self
-
-    async def run(self, initial_payload: Optional[Dict[str, Any]] = None) -> WorkflowContext:
-        context = WorkflowContext(payload=initial_payload or {})
-        logger.info(f"Starting Workflow [{self.name}] ID: {context.workflow_id}")
-
+    async def run(self, context: WorkflowContext) -> WorkflowContext:
+        context.status = "PROCESSING"
         for step in self.steps:
             try:
                 context = await step.execute(context)
                 if context.errors:
-                    logger.error(f"Errors encounterd in step [{step.name}]: {context.errors}")
+                    context.status = "FAILED"
+                    return context
             except Exception as e:
-                logger.exception(f"Unhandled exception during step [{step.name}]: {e}")
-                context.errors.append(f"Fatal error at step {step.name}: {str(e)}")
-                break
+                logger.exception(f"Error executing step {step.name}")
+                context.errors.append(str(e))
+                context.status = "FAILED"
+                return context
 
-        logger.info(f"Finished Workflow [{self.name}]. Success: {len(context.errors) == 0}")
+        context.status = "COMPLETED"
         return context
 
+engine = AutomationEngine()
 
 # ---------------------------------------------------------------------------
-# Handler Actions for Routing
+# FastAPI Application & Endpoints
 # ---------------------------------------------------------------------------
-async def handle_negative_feedback(context: WorkflowContext) -> None:
-    logger.info("ACTION: Escalating negative feedback to customer support ticket system.")
-    context.results["routed_action"] = "Created high-priority support ticket."
+app = FastAPI(
+    title="AI Automation Server",
+    description="Backend API server for async AI workflows and task automation.",
+    version="2.0.0"
+)
 
-async def handle_positive_feedback(context: WorkflowContext) -> None:
-    logger.info("ACTION: Logging positive review for public feedback highlight.")
-    context.results["routed_action"] = "Logged into promotional campaign queue."
+# Background Task Worker
+async def run_workflow_task(job_id: str):
+    context = JOBS_DB.get(job_id)
+    if context:
+        await engine.run(context)
 
+@app.post("/api/v1/automation/run", response_model=WorkflowResponse)
+async def run_sync_automation(request: AutomationRequest):
+    """Executes the AI automation pipeline synchronously and returns results immediately."""
+    context = WorkflowContext(payload=request.model_dump())
+    JOBS_DB[context.workflow_id] = context
+    await engine.run(context)
+    return context.to_dict()
 
-# ---------------------------------------------------------------------------
-# Main Execution Entry Point
-# ---------------------------------------------------------------------------
-async def main():
-    sample_data = {
-        "user_id": "usr_9021",
-        "user_feedback": "I love the new UI update! It makes automation so easy and fast."
+@app.post("/api/v1/automation/submit", status_code=202)
+async def submit_async_automation(request: AutomationRequest, background_tasks: BackgroundTasks):
+    """Submits the AI automation task asynchronously in the background."""
+    context = WorkflowContext(payload=request.model_dump())
+    JOBS_DB[context.workflow_id] = context
+    background_tasks.add_task(run_workflow_task, context.workflow_id)
+    return {
+        "message": "Workflow submitted successfully",
+        "workflow_id": context.workflow_id,
+        "status": context.status
     }
 
-    # Build Pipeline
-    pipeline = AutomationPipeline(name="AI Customer Feedback Processor")
-    
-    pipeline.add_step(
-        IngestionStep(name="Data Ingestion", source_data=sample_data)
-    ).add_step(
-        SentimentAnalysisAIStep(name="AI Processing")
-    ).add_step(
-        DecisionRoutingStep(
-            name="Action Router",
-            action_map={
-                "negative": handle_negative_feedback,
-                "positive": handle_positive_feedback
-            }
-        )
-    )
+@app.get("/api/v1/automation/status/{workflow_id}", response_model=WorkflowResponse)
+async def get_workflow_status(workflow_id: str):
+    """Fetches status and results for a specific workflow ID."""
+    context = JOBS_DB.get(workflow_id)
+    if not context:
+        raise HTTPException(status_code=404, detail="Workflow ID not found")
+    return context.to_dict()
 
-    # Execute Pipeline
-    result_context = await pipeline.run()
+@app.websocket("/ws/automation")
+async def websocket_automation(websocket: WebSocket):
+    """Real-time WebSocket endpoint to submit tasks and stream execution status."""
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_json()
+            context = WorkflowContext(payload=data)
+            
+            await websocket.send_json({"event": "STARTED", "workflow_id": context.workflow_id})
+            await engine.run(context)
+            await websocket.send_json({"event": "COMPLETED", "data": context.to_dict()})
+    except WebSocketDisconnect:
+        logger.info("WebSocket client disconnected.")
 
-    # Display Execution Summary
-    print("\n--- Final Workflow Execution Summary ---")
-    print(f"Workflow ID: {result_context.workflow_id}")
-    print(f"Results: {result_context.results}")
-    print(f"Errors: {result_context.errors}")
-
-
+# ---------------------------------------------------------------------------
+# Direct File Execution Entry Point
+# ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    asyncio.run(main())
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
