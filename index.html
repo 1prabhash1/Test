@@ -2,7 +2,6 @@
 <html lang="en">
 
 <head>
-
 <meta charset="UTF-8">
 
 <meta
@@ -10,7 +9,7 @@
     content="width=device-width, initial-scale=1.0"
 >
 
-<title>Video Player</title>
+<title>My Video Player</title>
 
 <style>
 
@@ -18,62 +17,33 @@
     box-sizing: border-box;
 }
 
-html,
 body {
     margin: 0;
-    padding: 0;
-
-    min-height: 100%;
-
     background: #050505;
-
     color: white;
-
-    font-family:
-        Arial,
-        Helvetica,
-        sans-serif;
-}
-
-body {
-    min-height: 100vh;
-
-    padding: 15px;
+    font-family: Arial, sans-serif;
 }
 
 .app {
     width: 100%;
-    max-width: 1200px;
-
+    max-width: 1100px;
     margin: auto;
+    padding: 15px;
 }
 
-
-/* HEADER */
-
-.header {
-    margin-bottom: 15px;
-}
-
-.title {
+h1 {
     font-size: 24px;
-    font-weight: bold;
-
-    margin-bottom: 12px;
+    margin: 0 0 15px;
 }
 
 .url-box {
     display: flex;
-
     gap: 8px;
-
-    width: 100%;
+    margin-bottom: 15px;
 }
 
 #urlInput {
-
     flex: 1;
-
     min-width: 0;
 
     height: 45px;
@@ -81,34 +51,23 @@ body {
     padding: 0 14px;
 
     border: 1px solid #333;
-
     border-radius: 8px;
 
     background: #151515;
-
     color: white;
 
     outline: none;
-
-    font-size: 14px;
-}
-
-#urlInput:focus {
-    border-color: #777;
 }
 
 #loadButton {
-
     height: 45px;
 
-    padding: 0 22px;
+    padding: 0 20px;
 
     border: none;
-
     border-radius: 8px;
 
     background: white;
-
     color: black;
 
     font-weight: bold;
@@ -116,351 +75,79 @@ body {
     cursor: pointer;
 }
 
-#loadButton:hover {
-    background: #ddd;
-}
-
-
-/* PLAYER */
-
 .player {
-
-    position: relative;
-
     width: 100%;
 
     aspect-ratio: 16 / 9;
 
     background: black;
 
+    border-radius: 10px;
+
     overflow: hidden;
 
-    border-radius: 10px;
+    position: relative;
 }
 
-video {
-
+#youtubePlayer,
+#videoPlayer {
     width: 100%;
     height: 100%;
+}
+
+iframe,
+video {
+    width: 100%;
+    height: 100%;
+
+    border: none;
 
     display: block;
 
     background: black;
-
-    object-fit: contain;
 }
 
-
-/* CENTER PLAY */
-
-.center-play {
-
-    position: absolute;
-
-    left: 50%;
-    top: 50%;
-
-    transform:
-        translate(
-            -50%,
-            -50%
-        );
-
-    width: 70px;
-    height: 70px;
-
-    border: none;
-
-    border-radius: 50%;
-
-    background:
-        rgba(
-            255,
-            255,
-            255,
-            0.92
-        );
-
-    color: black;
-
-    font-size: 24px;
-
-    cursor: pointer;
-
-    z-index: 5;
+.hidden {
+    display: none !important;
 }
-
-.center-play.hidden {
-    display: none;
-}
-
-
-/* LOADING */
-
-.loading {
-
-    position: absolute;
-
-    left: 50%;
-    top: 50%;
-
-    transform:
-        translate(
-            -50%,
-            -50%
-        );
-
-    z-index: 10;
-
-    text-align: center;
-
-    color: white;
-}
-
-.loading.hidden {
-    display: none;
-}
-
-.spinner {
-
-    width: 40px;
-    height: 40px;
-
-    margin: auto;
-    margin-bottom: 10px;
-
-    border:
-
-        4px solid #444;
-
-    border-top-color: white;
-
-    border-radius: 50%;
-
-    animation:
-        spin .8s linear infinite;
-}
-
-@keyframes spin {
-
-    to {
-        transform: rotate(360deg);
-    }
-
-}
-
-
-/* ERROR */
 
 .error {
+    margin-top: 10px;
 
-    position: absolute;
+    padding: 12px;
 
-    left: 50%;
-    top: 50%;
+    background: #1a0808;
 
-    transform:
-        translate(
-            -50%,
-            -50%
-        );
+    border: 1px solid #552222;
 
-    width: 80%;
+    color: #ff7777;
 
-    padding: 15px;
+    border-radius: 7px;
 
-    background:
-        rgba(
-            0,
-            0,
-            0,
-            .9
-        );
-
-    color: #ff7070;
-
-    text-align: center;
-
-    border-radius: 8px;
-
-    z-index: 20;
+    font-size: 14px;
 }
-
-.error.hidden {
-    display: none;
-}
-
-
-/* CONTROLS */
-
-.controls {
-
-    position: absolute;
-
-    left: 0;
-    right: 0;
-    bottom: 0;
-
-    padding: 10px;
-
-    background:
-        linear-gradient(
-            transparent,
-            rgba(
-                0,
-                0,
-                0,
-                .95
-            )
-        );
-
-    z-index: 4;
-}
-
-
-/* PROGRESS */
-
-.progress {
-
-    width: 100%;
-
-    height: 5px;
-
-    margin-bottom: 8px;
-
-    cursor: pointer;
-
-    accent-color: white;
-}
-
-
-/* CONTROL ROW */
-
-.control-row {
-
-    display: flex;
-
-    align-items: center;
-
-    gap: 5px;
-}
-
-.control-row button {
-
-    width: 34px;
-    height: 34px;
-
-    padding: 0;
-
-    border: none;
-
-    border-radius: 5px;
-
-    background: transparent;
-
-    color: white;
-
-    font-size: 16px;
-
-    cursor: pointer;
-}
-
-.control-row button:hover {
-
-    background:
-        rgba(
-            255,
-            255,
-            255,
-            .15
-        );
-}
-
-
-/* VOLUME */
-
-#volume {
-
-    width: 80px;
-
-    accent-color: white;
-}
-
-
-/* TIME */
-
-#time {
-
-    font-size: 12px;
-
-    color: #ddd;
-
-    white-space: nowrap;
-}
-
-
-/* SPEED */
-
-#speed {
-
-    height: 30px;
-
-    padding: 0 5px;
-
-    border:
-
-        1px solid #444;
-
-    border-radius: 5px;
-
-    background: #111;
-
-    color: white;
-
-    outline: none;
-}
-
-
-/* INFO */
 
 .info {
-
     margin-top: 12px;
 
-    padding: 15px;
+    padding: 14px;
 
     background: #111;
 
     border-radius: 8px;
-}
 
-.info h2 {
-
-    margin:
-        0 0 7px;
-
-    font-size: 18px;
-}
-
-.info p {
-
-    margin: 0;
-
-    color: #999;
+    color: #aaa;
 
     font-size: 13px;
 }
 
+@media (max-width: 600px) {
 
-/* MOBILE */
-
-@media (max-width: 650px) {
-
-    body {
+    .app {
         padding: 8px;
     }
 
-    .title {
+    h1 {
         font-size: 20px;
     }
 
@@ -472,34 +159,6 @@ video {
         width: 100%;
     }
 
-    .control-row {
-        gap: 2px;
-    }
-
-    .control-row button {
-        width: 29px;
-        height: 29px;
-    }
-
-    #volume {
-        width: 50px;
-    }
-
-    #time {
-        font-size: 9px;
-    }
-
-    #speed {
-        font-size: 10px;
-    }
-
-    .center-play {
-        width: 55px;
-        height: 55px;
-
-        font-size: 20px;
-    }
-
 }
 
 </style>
@@ -509,434 +168,135 @@ video {
 
 <body>
 
-
 <div class="app">
 
-
-    <div class="header">
-
-        <div class="title">
-            Video Player
-        </div>
+    <h1>My Video Player</h1>
 
 
-        <div class="url-box">
+    <div class="url-box">
 
-            <input
-                id="urlInput"
-                type="url"
-                placeholder="Paste direct video URL..."
-                autocomplete="off"
-            >
+        <input
+            id="urlInput"
+            type="url"
+            placeholder="Paste YouTube or direct MP4 URL..."
+            autocomplete="off"
+        >
 
-
-            <button
-                id="loadButton"
-            >
-                Load
-            </button>
-
-        </div>
+        <button id="loadButton">
+            Load Video
+        </button>
 
     </div>
 
 
-    <!-- PLAYER -->
+    <div class="player">
 
-    <div
-        id="player"
-        class="player"
-    >
+        <!-- YouTube -->
+
+        <div
+            id="youtubePlayer"
+            class="hidden"
+        ></div>
+
+
+        <!-- Direct Video -->
 
         <video
-            id="video"
+            id="videoPlayer"
+            class="hidden"
+            controls
             playsinline
             preload="metadata"
         ></video>
 
-
-        <!-- CENTER PLAY -->
-
-        <button
-            id="centerPlay"
-            class="center-play"
-        >
-            ▶
-        </button>
-
-
-        <!-- LOADING -->
-
-        <div
-            id="loading"
-            class="loading hidden"
-        >
-
-            <div class="spinner"></div>
-
-            <div>
-                Loading...
-            </div>
-
-        </div>
-
-
-        <!-- ERROR -->
-
-        <div
-            id="error"
-            class="error hidden"
-        ></div>
-
-
-        <!-- CONTROLS -->
-
-        <div class="controls">
-
-
-            <!-- PROGRESS -->
-
-            <input
-                id="progress"
-                class="progress"
-                type="range"
-                min="0"
-                max="100"
-                step="0.01"
-                value="0"
-            >
-
-
-            <div class="control-row">
-
-
-                <!-- PLAY -->
-
-                <button
-                    id="playButton"
-                    title="Play/Pause"
-                >
-                    ▶
-                </button>
-
-
-                <!-- BACK -->
-
-                <button
-                    id="backButton"
-                    title="Back 10 seconds"
-                >
-                    ↶
-                </button>
-
-
-                <!-- FORWARD -->
-
-                <button
-                    id="forwardButton"
-                    title="Forward 10 seconds"
-                >
-                    ↷
-                </button>
-
-
-                <!-- MUTE -->
-
-                <button
-                    id="muteButton"
-                    title="Mute"
-                >
-                    🔊
-                </button>
-
-
-                <!-- VOLUME -->
-
-                <input
-                    id="volume"
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    value="1"
-                >
-
-
-                <!-- TIME -->
-
-                <span id="time">
-                    00:00 / 00:00
-                </span>
-
-
-                <!-- SPEED -->
-
-                <select id="speed">
-
-                    <option value="0.5">
-                        0.5x
-                    </option>
-
-                    <option value="0.75">
-                        0.75x
-                    </option>
-
-                    <option value="1"
-                            selected>
-                        1x
-                    </option>
-
-                    <option value="1.25">
-                        1.25x
-                    </option>
-
-                    <option value="1.5">
-                        1.5x
-                    </option>
-
-                    <option value="1.75">
-                        1.75x
-                    </option>
-
-                    <option value="2">
-                        2x
-                    </option>
-
-                </select>
-
-
-                <!-- PIP -->
-
-                <button
-                    id="pipButton"
-                    title="Picture in Picture"
-                >
-                    ▣
-                </button>
-
-
-                <!-- FULLSCREEN -->
-
-                <button
-                    id="fullscreenButton"
-                    title="Fullscreen"
-                >
-                    ⛶
-                </button>
-
-
-            </div>
-
-        </div>
-
     </div>
 
 
-    <!-- INFORMATION -->
+    <div
+        id="error"
+        class="error hidden"
+    ></div>
+
 
     <div class="info">
 
-        <h2 id="videoTitle">
-            Video Player
-        </h2>
+        <b>Supported URLs</b>
 
-        <p id="videoStatus">
-            Paste a direct video URL above.
-        </p>
+        <br><br>
+
+        YouTube:
+
+        <br>
+
+        https://www.youtube.com/watch?v=VIDEO_ID
+
+        <br>
+
+        https://youtu.be/VIDEO_ID
+
+        <br><br>
+
+        Direct video:
+
+        <br>
+
+        https://example.com/video.mp4
 
     </div>
-
 
 </div>
 
 
+<!-- YouTube IFrame API -->
+
+<script src="https://www.youtube.com/iframe_api"></script>
+
 
 <script>
 
-
-/* =================================
+/* =========================================
    ELEMENTS
-================================= */
-
-const video =
-    document.getElementById(
-        "video"
-    );
+========================================= */
 
 const urlInput =
-    document.getElementById(
-        "urlInput"
-    );
+    document.getElementById("urlInput");
 
 const loadButton =
-    document.getElementById(
-        "loadButton"
-    );
+    document.getElementById("loadButton");
 
-const playButton =
-    document.getElementById(
-        "playButton"
-    );
+const youtubePlayer =
+    document.getElementById("youtubePlayer");
 
-const centerPlay =
-    document.getElementById(
-        "centerPlay"
-    );
-
-const backButton =
-    document.getElementById(
-        "backButton"
-    );
-
-const forwardButton =
-    document.getElementById(
-        "forwardButton"
-    );
-
-const muteButton =
-    document.getElementById(
-        "muteButton"
-    );
-
-const volume =
-    document.getElementById(
-        "volume"
-    );
-
-const progress =
-    document.getElementById(
-        "progress"
-    );
-
-const time =
-    document.getElementById(
-        "time"
-    );
-
-const speed =
-    document.getElementById(
-        "speed"
-    );
-
-const pipButton =
-    document.getElementById(
-        "pipButton"
-    );
-
-const fullscreenButton =
-    document.getElementById(
-        "fullscreenButton"
-    );
-
-const player =
-    document.getElementById(
-        "player"
-    );
-
-const loading =
-    document.getElementById(
-        "loading"
-    );
+const videoPlayer =
+    document.getElementById("videoPlayer");
 
 const errorBox =
-    document.getElementById(
-        "error"
-    );
-
-const videoStatus =
-    document.getElementById(
-        "videoStatus"
-    );
+    document.getElementById("error");
 
 
-/* =================================
-   TIME FORMAT
-================================= */
+/* =========================================
+   YOUTUBE PLAYER
+========================================= */
 
-function formatTime(seconds) {
-
-    if (
-        !Number.isFinite(seconds)
-    ) {
-        return "00:00";
-    }
+let ytPlayer = null;
 
 
-    seconds =
-        Math.floor(seconds);
+/* YouTube API calls this automatically */
 
+function onYouTubeIframeAPIReady() {
 
-    const hours =
-        Math.floor(
-            seconds / 3600
-        );
-
-
-    const minutes =
-        Math.floor(
-            (seconds % 3600) / 60
-        );
-
-
-    const secondsPart =
-        seconds % 60;
-
-
-    if (hours > 0) {
-
-        return (
-            String(hours)
-                .padStart(2, "0")
-            +
-            ":"
-            +
-            String(minutes)
-                .padStart(2, "0")
-            +
-            ":"
-            +
-            String(secondsPart)
-                .padStart(2, "0")
-        );
-
-    }
-
-
-    return (
-        String(minutes)
-            .padStart(2, "0")
-        +
-        ":"
-        +
-        String(secondsPart)
-            .padStart(2, "0")
-    );
-}
-
-
-/* =================================
-   LOADING
-================================= */
-
-function setLoading(
-    state
-) {
-
-    loading.classList.toggle(
-        "hidden",
-        !state
+    console.log(
+        "YouTube API loaded"
     );
 
 }
 
 
-/* =================================
+/* =========================================
    ERROR
-================================= */
+========================================= */
 
-function showError(
-    message
-) {
+function showError(message) {
 
     errorBox.textContent =
         message;
@@ -957,11 +317,246 @@ function hideError() {
 }
 
 
-/* =================================
-   LOAD VIDEO
-================================= */
+/* =========================================
+   EXTRACT YOUTUBE ID
+========================================= */
 
-function loadVideo() {
+function getYouTubeID(url) {
+
+    try {
+
+        const parsed =
+            new URL(url);
+
+
+        /* youtube.com/watch?v= */
+
+        if (
+            parsed.hostname
+                .includes("youtube.com")
+        ) {
+
+            const id =
+                parsed.searchParams.get(
+                    "v"
+                );
+
+            if (id) {
+                return id;
+            }
+
+
+            /* youtube.com/embed/ID */
+
+            const embedMatch =
+                parsed.pathname.match(
+                    /\/embed\/([^/?]+)/
+                );
+
+            if (embedMatch) {
+
+                return embedMatch[1];
+
+            }
+
+
+            /* youtube.com/shorts/ID */
+
+            const shortsMatch =
+                parsed.pathname.match(
+                    /\/shorts\/([^/?]+)/
+                );
+
+            if (shortsMatch) {
+
+                return shortsMatch[1];
+
+            }
+
+        }
+
+
+        /* youtu.be/ID */
+
+        if (
+            parsed.hostname ===
+            "youtu.be"
+        ) {
+
+            const id =
+                parsed.pathname
+                    .split("/")
+                    .filter(Boolean)[0];
+
+            if (id) {
+                return id;
+            }
+
+        }
+
+    }
+
+    catch {
+
+        return null;
+
+    }
+
+
+    return null;
+
+}
+
+
+/* =========================================
+   CHECK DIRECT VIDEO
+========================================= */
+
+function isDirectVideo(url) {
+
+    return /\.(mp4|webm|ogg|m4v)(\?.*)?$/i
+        .test(url);
+
+}
+
+
+/* =========================================
+   LOAD YOUTUBE
+========================================= */
+
+function loadYouTube(videoId) {
+
+    videoPlayer.pause();
+
+    videoPlayer.removeAttribute(
+        "src"
+    );
+
+    videoPlayer.classList.add(
+        "hidden"
+    );
+
+
+    youtubePlayer.classList.remove(
+        "hidden"
+    );
+
+
+    if (ytPlayer) {
+
+        ytPlayer.loadVideoById(
+            videoId
+        );
+
+        return;
+
+    }
+
+
+    /* Create YouTube player */
+
+    ytPlayer =
+        new YT.Player(
+            "youtubePlayer",
+            {
+
+                videoId: videoId,
+
+                width: "100%",
+
+                height: "100%",
+
+                playerVars: {
+
+                    playsinline: 1,
+
+                    rel: 0,
+
+                    modestbranding: 1
+
+                },
+
+                events: {
+
+                    onReady:
+                        function() {
+
+                            console.log(
+                                "YouTube player ready"
+                            );
+
+                        },
+
+                    onError:
+                        function(event) {
+
+                            showError(
+                                "YouTube could not play this video. The video may be private, removed, age-restricted, or embedding may be disabled."
+                            );
+
+                            console.log(
+                                "YouTube error:",
+                                event.data
+                            );
+
+                        }
+
+                }
+
+            }
+        );
+
+}
+
+
+/* =========================================
+   LOAD DIRECT VIDEO
+========================================= */
+
+function loadDirectVideo(url) {
+
+    if (ytPlayer) {
+
+        ytPlayer.stopVideo();
+
+    }
+
+
+    youtubePlayer.classList.add(
+        "hidden"
+    );
+
+
+    videoPlayer.classList.remove(
+        "hidden"
+    );
+
+
+    videoPlayer.pause();
+
+
+    videoPlayer.src =
+        url;
+
+
+    videoPlayer.load();
+
+
+    videoPlayer.play()
+        .catch(
+            function() {
+                /* Browser autoplay may be blocked */
+            }
+        );
+
+}
+
+
+/* =========================================
+   LOAD URL
+========================================= */
+
+function loadURL() {
 
     const url =
         urlInput.value.trim();
@@ -974,54 +569,65 @@ function loadVideo() {
         );
 
         return;
-    }
 
-
-    try {
-
-        new URL(url);
-
-    }
-
-    catch {
-
-        showError(
-            "Invalid URL."
-        );
-
-        return;
     }
 
 
     hideError();
 
-    setLoading(true);
+
+    const youtubeID =
+        getYouTubeID(url);
 
 
-    video.pause();
+    /* YouTube */
 
-    video.removeAttribute(
-        "src"
+    if (youtubeID) {
+
+        loadYouTube(
+            youtubeID
+        );
+
+        return;
+
+    }
+
+
+    /* Direct video */
+
+    if (
+        isDirectVideo(url)
+    ) {
+
+        loadDirectVideo(
+            url
+        );
+
+        return;
+
+    }
+
+
+    showError(
+        "Unsupported URL. Paste a YouTube URL or a direct MP4/WebM video URL."
     );
 
-    video.load();
-
-
-    video.src = url;
-
-    video.load();
-
-
-    videoStatus.textContent =
-        "Loading video...";
 }
 
 
+/* =========================================
+   BUTTON
+========================================= */
+
 loadButton.addEventListener(
     "click",
-    loadVideo
+    loadURL
 );
 
+
+/* =========================================
+   ENTER
+========================================= */
 
 urlInput.addEventListener(
     "keydown",
@@ -1031,7 +637,7 @@ urlInput.addEventListener(
             event.key === "Enter"
         ) {
 
-            loadVideo();
+            loadURL();
 
         }
 
@@ -1039,617 +645,17 @@ urlInput.addEventListener(
 );
 
 
-/* =================================
-   PLAY / PAUSE
-================================= */
-
-async function togglePlay() {
-
-    if (!video.src) {
-
-        showError(
-            "Load a video first."
-        );
-
-        return;
-    }
-
-
-    try {
-
-        if (
-            video.paused
-        ) {
-
-            await video.play();
-
-        }
-
-        else {
-
-            video.pause();
-
-        }
-
-    }
-
-    catch {
-
-        showError(
-            "The browser cannot play this video."
-        );
-
-    }
-
-}
-
-
-playButton.addEventListener(
-    "click",
-    togglePlay
-);
-
-
-centerPlay.addEventListener(
-    "click",
-    togglePlay
-);
-
-
-/* =================================
-   PLAY EVENT
-================================= */
-
-video.addEventListener(
-    "play",
-    function() {
-
-        playButton.textContent =
-            "❚❚";
-
-        centerPlay.classList.add(
-            "hidden"
-        );
-
-    }
-);
-
-
-/* =================================
-   PAUSE EVENT
-================================= */
-
-video.addEventListener(
-    "pause",
-    function() {
-
-        playButton.textContent =
-            "▶";
-
-        centerPlay.classList.remove(
-            "hidden"
-        );
-
-    }
-);
-
-
-/* =================================
-   METADATA
-================================= */
-
-video.addEventListener(
-    "loadedmetadata",
-    function() {
-
-        setLoading(false);
-
-        hideError();
-
-
-        time.textContent =
-            "00:00 / "
-            +
-            formatTime(
-                video.duration
-            );
-
-
-        videoStatus.textContent =
-            "Video ready.";
-
-    }
-);
-
-
-/* =================================
-   TIME UPDATE
-================================= */
-
-video.addEventListener(
-    "timeupdate",
-    function() {
-
-        const current =
-            video.currentTime;
-
-        const total =
-            video.duration;
-
-
-        time.textContent =
-            formatTime(
-                current
-            )
-            +
-            " / "
-            +
-            formatTime(
-                total
-            );
-
-
-        if (
-            Number.isFinite(total)
-            &&
-            total > 0
-        ) {
-
-            progress.value =
-                (
-                    current /
-                    total
-                ) * 100;
-
-        }
-
-    }
-);
-
-
-/* =================================
-   SEEK
-================================= */
-
-progress.addEventListener(
-    "input",
-    function() {
-
-        if (
-            !Number.isFinite(
-                video.duration
-            )
-        ) {
-
-            return;
-        }
-
-
-        video.currentTime =
-            (
-                Number(
-                    progress.value
-                ) / 100
-            )
-            *
-            video.duration;
-
-    }
-);
-
-
-/* =================================
-   BACK 10 SEC
-================================= */
-
-backButton.addEventListener(
-    "click",
-    function() {
-
-        video.currentTime =
-            Math.max(
-                0,
-                video.currentTime - 10
-            );
-
-    }
-);
-
-
-/* =================================
-   FORWARD 10 SEC
-================================= */
-
-forwardButton.addEventListener(
-    "click",
-    function() {
-
-        video.currentTime =
-            Math.min(
-                video.duration || 0,
-                video.currentTime + 10
-            );
-
-    }
-);
-
-
-/* =================================
-   VOLUME
-================================= */
-
-volume.addEventListener(
-    "input",
-    function() {
-
-        video.volume =
-            Number(
-                volume.value
-            );
-
-        video.muted =
-            video.volume === 0;
-
-        updateMuteIcon();
-
-    }
-);
-
-
-/* =================================
-   MUTE
-================================= */
-
-muteButton.addEventListener(
-    "click",
-    function() {
-
-        video.muted =
-            !video.muted;
-
-        updateMuteIcon();
-
-    }
-);
-
-
-function updateMuteIcon() {
-
-    if (
-        video.muted ||
-        video.volume === 0
-    ) {
-
-        muteButton.textContent =
-            "🔇";
-
-    }
-
-    else if (
-        video.volume < 0.5
-    ) {
-
-        muteButton.textContent =
-            "🔉";
-
-    }
-
-    else {
-
-        muteButton.textContent =
-            "🔊";
-
-    }
-
-}
-
-
-/* =================================
-   PLAYBACK SPEED
-================================= */
-
-speed.addEventListener(
-    "change",
-    function() {
-
-        video.playbackRate =
-            Number(
-                speed.value
-            );
-
-    }
-);
-
-
-/* =================================
-   FULLSCREEN
-================================= */
-
-fullscreenButton.addEventListener(
-    "click",
-    async function() {
-
-        try {
-
-            if (
-                !document.fullscreenElement
-            ) {
-
-                await player.requestFullscreen();
-
-            }
-
-            else {
-
-                await document.exitFullscreen();
-
-            }
-
-        }
-
-        catch {
-
-            showError(
-                "Fullscreen is not supported."
-            );
-
-        }
-
-    }
-);
-
-
-/* =================================
-   PICTURE IN PICTURE
-================================= */
-
-pipButton.addEventListener(
-    "click",
-    async function() {
-
-        try {
-
-            if (
-                document.pictureInPictureElement
-            ) {
-
-                await document.exitPictureInPicture();
-
-            }
-
-            else if (
-                document.pictureInPictureEnabled
-            ) {
-
-                await video.requestPictureInPicture();
-
-            }
-
-            else {
-
-                showError(
-                    "Picture-in-picture is not supported."
-                );
-
-            }
-
-        }
-
-        catch {
-
-            showError(
-                "Picture-in-picture failed."
-            );
-
-        }
-
-    }
-);
-
-
-/* =================================
-   LOADING EVENTS
-================================= */
-
-video.addEventListener(
-    "loadstart",
-    function() {
-
-        setLoading(true);
-
-    }
-);
-
-
-video.addEventListener(
-    "canplay",
-    function() {
-
-        setLoading(false);
-
-    }
-);
-
-
-video.addEventListener(
-    "waiting",
-    function() {
-
-        setLoading(true);
-
-        videoStatus.textContent =
-            "Buffering...";
-
-    }
-);
-
-
-video.addEventListener(
-    "playing",
-    function() {
-
-        setLoading(false);
-
-        videoStatus.textContent =
-            "Playing";
-
-    }
-);
-
-
-/* =================================
-   END
-================================= */
-
-video.addEventListener(
-    "ended",
-    function() {
-
-        playButton.textContent =
-            "▶";
-
-        centerPlay.classList.remove(
-            "hidden"
-        );
-
-        progress.value = 100;
-
-        videoStatus.textContent =
-            "Video finished.";
-
-    }
-);
-
-
-/* =================================
-   ERROR
-================================= */
-
-video.addEventListener(
-    "error",
-    function() {
-
-        setLoading(false);
-
-
-        showError(
-            "Unable to play this video. The URL must point directly to a browser-compatible video file and the server must allow browser access."
-        );
-
-
-        videoStatus.textContent =
-            "Video failed to load.";
-
-    }
-);
-
-
-/* =================================
-   KEYBOARD
-================================= */
-
-document.addEventListener(
-    "keydown",
-    function(event) {
-
-        const tag =
-            document.activeElement.tagName;
-
-
-        if (
-            tag === "INPUT" ||
-            tag === "SELECT"
-        ) {
-
-            return;
-
-        }
-
-
-        /* SPACE */
-
-        if (
-            event.code === "Space"
-        ) {
-
-            event.preventDefault();
-
-            togglePlay();
-
-        }
-
-
-        /* LEFT */
-
-        if (
-            event.key === "ArrowLeft"
-        ) {
-
-            event.preventDefault();
-
-            video.currentTime =
-                Math.max(
-                    0,
-                    video.currentTime - 5
-                );
-
-        }
-
-
-        /* RIGHT */
-
-        if (
-            event.key === "ArrowRight"
-        ) {
-
-            event.preventDefault();
-
-            video.currentTime =
-                Math.min(
-                    video.duration || 0,
-                    video.currentTime + 5
-                );
-
-        }
-
-
-        /* MUTE */
-
-        if (
-            event.key.toLowerCase()
-            === "m"
-        ) {
-
-            video.muted =
-                !video.muted;
-
-            updateMuteIcon();
-
-        }
-
-
-        /* FULLSCREEN */
-
-        if (
-            event.key.toLowerCase()
-            === "f"
-        ) {
-
-            fullscreenButton.click();
-
-        }
-
-    }
-);
-
-
-/* =================================
+/* =========================================
    URL PARAMETER
-================================= */
+========================================= */
 
 /*
 
-Example:
+You can also open:
+
+index.html?video=https://www.youtube.com/watch?v=VIDEO_ID
+
+OR:
 
 index.html?video=https://example.com/video.mp4
 
@@ -1661,38 +667,66 @@ const params =
     );
 
 
-const videoURL =
+const parameterVideo =
     params.get(
         "video"
     );
 
 
-if (videoURL) {
+if (parameterVideo) {
 
     urlInput.value =
-        videoURL;
+        parameterVideo;
 
-    loadVideo();
+    /*
+       Wait for YouTube API if
+       the supplied URL is YouTube.
+    */
+
+    const youtubeID =
+        getYouTubeID(
+            parameterVideo
+        );
+
+
+    if (youtubeID) {
+
+        function waitForYouTube() {
+
+            if (
+                typeof YT !==
+                "undefined" &&
+                YT.Player
+            ) {
+
+                loadYouTube(
+                    youtubeID
+                );
+
+            }
+
+            else {
+
+                setTimeout(
+                    waitForYouTube,
+                    300
+                );
+
+            }
+
+        }
+
+        waitForYouTube();
+
+    }
+
+    else {
+
+        loadURL();
+
+    }
 
 }
-
-
-/* =================================
-   YOUR TEST VIDEO
-================================= */
-
-/*
-
-You can test by pasting:
-
-https://test-videos.co.uk/vids/bigbuckbunny/mp4/av1/720/Big_Buck_Bunny_720_10s_2MB.mp4
-
-If that particular AV1 file doesn't play
-on your Android browser, use an H.264
-MP4 version instead.
-
-*/
-
 
 </script>
 
