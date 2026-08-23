@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
 <meta charset="UTF-8">
 
@@ -12,28 +11,39 @@
 <title>My Video Player</title>
 
 <style>
-
 * {
     box-sizing: border-box;
 }
 
+html,
 body {
     margin: 0;
+    padding: 0;
+
+    min-height: 100%;
+
     background: #050505;
     color: white;
+
     font-family: Arial, sans-serif;
+}
+
+body {
+    padding: 12px;
 }
 
 .app {
     width: 100%;
     max-width: 1100px;
     margin: auto;
-    padding: 15px;
 }
 
-h1 {
+/* HEADER */
+
+.title {
     font-size: 24px;
-    margin: 0 0 15px;
+    font-weight: bold;
+    margin-bottom: 14px;
 }
 
 .url-box {
@@ -50,21 +60,27 @@ h1 {
 
     padding: 0 14px;
 
-    border: 1px solid #333;
-    border-radius: 8px;
-
     background: #151515;
     color: white;
 
+    border: 1px solid #333;
+    border-radius: 8px;
+
     outline: none;
+
+    font-size: 14px;
+}
+
+#urlInput:focus {
+    border-color: #777;
 }
 
 #loadButton {
     height: 45px;
 
-    padding: 0 20px;
+    padding: 0 22px;
 
-    border: none;
+    border: 0;
     border-radius: 8px;
 
     background: white;
@@ -75,7 +91,15 @@ h1 {
     cursor: pointer;
 }
 
+#loadButton:hover {
+    background: #ddd;
+}
+
+/* PLAYER */
+
 .player {
+    position: relative;
+
     width: 100%;
 
     aspect-ratio: 16 / 9;
@@ -85,24 +109,16 @@ h1 {
     border-radius: 10px;
 
     overflow: hidden;
-
-    position: relative;
 }
 
-#youtubePlayer,
-#videoPlayer {
+.player iframe,
+.player video {
     width: 100%;
     height: 100%;
-}
-
-iframe,
-video {
-    width: 100%;
-    height: 100%;
-
-    border: none;
 
     display: block;
+
+    border: 0;
 
     background: black;
 }
@@ -111,21 +127,27 @@ video {
     display: none !important;
 }
 
-.error {
+/* ERROR */
+
+#error {
     margin-top: 10px;
 
     padding: 12px;
 
-    background: #1a0808;
+    background: #180707;
 
-    border: 1px solid #552222;
+    border: 1px solid #512222;
 
     color: #ff7777;
 
     border-radius: 7px;
 
     font-size: 14px;
+
+    line-height: 1.5;
 }
+
+/* INFO */
 
 .info {
     margin-top: 12px;
@@ -136,18 +158,22 @@ video {
 
     border-radius: 8px;
 
-    color: #aaa;
+    color: #999;
 
     font-size: 13px;
+
+    line-height: 1.6;
 }
+
+/* MOBILE */
 
 @media (max-width: 600px) {
 
-    .app {
-        padding: 8px;
+    body {
+        padding: 7px;
     }
 
-    h1 {
+    .title {
         font-size: 20px;
     }
 
@@ -158,32 +184,31 @@ video {
     #loadButton {
         width: 100%;
     }
-
 }
-
 </style>
 
 </head>
-
 
 <body>
 
 <div class="app">
 
-    <h1>My Video Player</h1>
+    <div class="title">
+        My Video Player
+    </div>
 
 
     <div class="url-box">
 
         <input
             id="urlInput"
-            type="url"
-            placeholder="Paste YouTube or direct MP4 URL..."
+            type="text"
+            placeholder="Paste YouTube or direct video URL"
             autocomplete="off"
         >
 
         <button id="loadButton">
-            Load Video
+            Load
         </button>
 
     </div>
@@ -191,18 +216,16 @@ video {
 
     <div class="player">
 
-        <!-- YouTube -->
-
+        <!-- YouTube player -->
         <div
-            id="youtubePlayer"
+            id="youtubeContainer"
             class="hidden"
         ></div>
 
 
-        <!-- Direct Video -->
-
+        <!-- Normal video -->
         <video
-            id="videoPlayer"
+            id="video"
             class="hidden"
             controls
             playsinline
@@ -214,7 +237,7 @@ video {
 
     <div
         id="error"
-        class="error hidden"
+        class="hidden"
     ></div>
 
 
@@ -233,6 +256,10 @@ video {
         <br>
 
         https://youtu.be/VIDEO_ID
+
+        <br>
+
+        https://www.youtube.com/shorts/VIDEO_ID
 
         <br><br>
 
@@ -258,17 +285,19 @@ video {
    ELEMENTS
 ========================================= */
 
-const urlInput =
+const input =
     document.getElementById("urlInput");
 
 const loadButton =
     document.getElementById("loadButton");
 
-const youtubePlayer =
-    document.getElementById("youtubePlayer");
+const youtubeContainer =
+    document.getElementById(
+        "youtubeContainer"
+    );
 
-const videoPlayer =
-    document.getElementById("videoPlayer");
+const video =
+    document.getElementById("video");
 
 const errorBox =
     document.getElementById("error");
@@ -278,15 +307,18 @@ const errorBox =
    YOUTUBE PLAYER
 ========================================= */
 
-let ytPlayer = null;
+let youtubePlayer = null;
 
 
-/* YouTube API calls this automatically */
+/*
+   YouTube calls this function
+   after the API has loaded.
+*/
 
 function onYouTubeIframeAPIReady() {
 
     console.log(
-        "YouTube API loaded"
+        "YouTube API ready"
     );
 
 }
@@ -304,7 +336,6 @@ function showError(message) {
     errorBox.classList.remove(
         "hidden"
     );
-
 }
 
 
@@ -313,98 +344,145 @@ function hideError() {
     errorBox.classList.add(
         "hidden"
     );
-
 }
 
 
 /* =========================================
-   EXTRACT YOUTUBE ID
+   GET YOUTUBE VIDEO ID
 ========================================= */
 
-function getYouTubeID(url) {
+function getYouTubeId(value) {
+
+    let url;
 
     try {
 
-        const parsed =
-            new URL(url);
-
-
-        /* youtube.com/watch?v= */
+        /*
+           Add https:// when someone
+           pastes youtu.be/... without it.
+        */
 
         if (
-            parsed.hostname
-                .includes("youtube.com")
+            !value.startsWith("http://") &&
+            !value.startsWith("https://")
         ) {
 
-            const id =
-                parsed.searchParams.get(
-                    "v"
-                );
-
-            if (id) {
-                return id;
-            }
-
-
-            /* youtube.com/embed/ID */
-
-            const embedMatch =
-                parsed.pathname.match(
-                    /\/embed\/([^/?]+)/
-                );
-
-            if (embedMatch) {
-
-                return embedMatch[1];
-
-            }
-
-
-            /* youtube.com/shorts/ID */
-
-            const shortsMatch =
-                parsed.pathname.match(
-                    /\/shorts\/([^/?]+)/
-                );
-
-            if (shortsMatch) {
-
-                return shortsMatch[1];
-
-            }
+            value =
+                "https://" + value;
 
         }
 
+        url =
+            new URL(value);
 
-        /* youtu.be/ID */
-
-        if (
-            parsed.hostname ===
-            "youtu.be"
-        ) {
-
-            const id =
-                parsed.pathname
-                    .split("/")
-                    .filter(Boolean)[0];
-
-            if (id) {
-                return id;
-            }
-
-        }
-
-    }
-
-    catch {
+    } catch {
 
         return null;
 
     }
 
 
-    return null;
+    const host =
+        url.hostname
+            .toLowerCase()
+            .replace(
+                /^www\./,
+                ""
+            );
 
+
+    /*
+       youtu.be/VIDEO_ID
+    */
+
+    if (
+        host === "youtu.be"
+    ) {
+
+        const parts =
+            url.pathname
+                .split("/")
+                .filter(Boolean);
+
+        return parts[0] || null;
+    }
+
+
+    /*
+       youtube.com
+    */
+
+    if (
+        host === "youtube.com" ||
+        host === "m.youtube.com"
+    ) {
+
+        /*
+           /watch?v=VIDEO_ID
+        */
+
+        if (
+            url.pathname === "/watch"
+        ) {
+
+            return url.searchParams.get(
+                "v"
+            );
+
+        }
+
+
+        /*
+           /shorts/VIDEO_ID
+        */
+
+        const shorts =
+            url.pathname.match(
+                /^\/shorts\/([^/?]+)/
+            );
+
+        if (shorts) {
+
+            return shorts[1];
+
+        }
+
+
+        /*
+           /embed/VIDEO_ID
+        */
+
+        const embed =
+            url.pathname.match(
+                /^\/embed\/([^/?]+)/
+            );
+
+        if (embed) {
+
+            return embed[1];
+
+        }
+
+
+        /*
+           /live/VIDEO_ID
+        */
+
+        const live =
+            url.pathname.match(
+                /^\/live\/([^/?]+)/
+            );
+
+        if (live) {
+
+            return live[1];
+
+        }
+
+    }
+
+
+    return null;
 }
 
 
@@ -412,142 +490,258 @@ function getYouTubeID(url) {
    CHECK DIRECT VIDEO
 ========================================= */
 
-function isDirectVideo(url) {
+function isDirectVideo(value) {
 
     return /\.(mp4|webm|ogg|m4v)(\?.*)?$/i
-        .test(url);
+        .test(value);
 
 }
 
 
 /* =========================================
-   LOAD YOUTUBE
+   WAIT FOR YOUTUBE API
 ========================================= */
 
-function loadYouTube(videoId) {
+function waitForYouTube(
+    videoId
+) {
 
-    videoPlayer.pause();
+    if (
+        typeof YT !== "undefined" &&
+        YT.Player
+    ) {
 
-    videoPlayer.removeAttribute(
-        "src"
-    );
-
-    videoPlayer.classList.add(
-        "hidden"
-    );
-
-
-    youtubePlayer.classList.remove(
-        "hidden"
-    );
-
-
-    if (ytPlayer) {
-
-        ytPlayer.loadVideoById(
+        createYouTubePlayer(
             videoId
         );
 
         return;
-
     }
 
 
-    /* Create YouTube player */
+    setTimeout(
+        function() {
 
-    ytPlayer =
-        new YT.Player(
-            "youtubePlayer",
-            {
+            waitForYouTube(
+                videoId
+            );
 
-                videoId: videoId,
+        },
+        200
+    );
+}
 
-                width: "100%",
 
-                height: "100%",
+/* =========================================
+   CREATE YOUTUBE PLAYER
+========================================= */
 
-                playerVars: {
+function createYouTubePlayer(
+    videoId
+) {
 
-                    playsinline: 1,
+    video.pause();
 
-                    rel: 0,
+    video.removeAttribute(
+        "src"
+    );
 
-                    modestbranding: 1
+    video.load();
 
-                },
+    video.classList.add(
+        "hidden"
+    );
 
-                events: {
 
-                    onReady:
-                        function() {
+    youtubeContainer.classList.remove(
+        "hidden"
+    );
 
-                            console.log(
-                                "YouTube player ready"
-                            );
 
-                        },
+    /*
+       First player
+    */
 
-                    onError:
-                        function(event) {
+    if (!youtubePlayer) {
 
-                            showError(
-                                "YouTube could not play this video. The video may be private, removed, age-restricted, or embedding may be disabled."
-                            );
+        youtubePlayer =
+            new YT.Player(
+                "youtubeContainer",
+                {
 
-                            console.log(
-                                "YouTube error:",
-                                event.data
-                            );
+                    width: "100%",
 
-                        }
+                    height: "100%",
+
+                    videoId: videoId,
+
+                    playerVars: {
+
+                        autoplay: 0,
+
+                        controls: 1,
+
+                        rel: 0,
+
+                        playsinline: 1,
+
+                        modestbranding: 1
+
+                    },
+
+                    events: {
+
+                        onReady:
+                            function() {
+
+                                console.log(
+                                    "YouTube player ready"
+                                );
+
+                            },
+
+
+                        onError:
+                            function(event) {
+
+                                let message =
+                                    "YouTube could not play this video.";
+
+                                /*
+                                   Common YouTube
+                                   player errors.
+                                */
+
+                                if (
+                                    event.data === 101 ||
+                                    event.data === 150
+                                ) {
+
+                                    message =
+                                        "This YouTube video does not allow playback on other websites.";
+
+                                }
+
+                                else if (
+                                    event.data === 100
+                                ) {
+
+                                    message =
+                                        "This YouTube video was not found or is unavailable.";
+
+                                }
+
+                                else if (
+                                    event.data === 2
+                                ) {
+
+                                    message =
+                                        "The YouTube video ID is invalid.";
+
+                                }
+
+
+                                showError(
+                                    message
+                                );
+
+                                console.log(
+                                    "YouTube error:",
+                                    event.data
+                                );
+
+                            }
+
+                    }
 
                 }
+            );
 
-            }
+    }
+
+    else {
+
+        /*
+           Existing player
+        */
+
+        youtubePlayer.loadVideoById(
+            videoId
         );
+
+    }
 
 }
 
 
 /* =========================================
-   LOAD DIRECT VIDEO
+   DIRECT VIDEO
 ========================================= */
 
-function loadDirectVideo(url) {
+function loadDirectVideo(
+    url
+) {
 
-    if (ytPlayer) {
+    /*
+       Hide YouTube
+    */
 
-        ytPlayer.stopVideo();
+    youtubeContainer.classList.add(
+        "hidden"
+    );
+
+
+    /*
+       Stop YouTube
+    */
+
+    if (youtubePlayer) {
+
+        try {
+
+            youtubePlayer.stopVideo();
+
+        } catch {}
 
     }
 
 
-    youtubePlayer.classList.add(
+    /*
+       Show normal video
+    */
+
+    video.classList.remove(
         "hidden"
     );
 
 
-    videoPlayer.classList.remove(
-        "hidden"
-    );
+    video.pause();
 
-
-    videoPlayer.pause();
-
-
-    videoPlayer.src =
+    video.src =
         url;
 
+    video.load();
 
-    videoPlayer.load();
 
-
-    videoPlayer.play()
+    video.play()
         .catch(
             function() {
-                /* Browser autoplay may be blocked */
+                /*
+                   Autoplay may be blocked.
+                   User can press Play.
+                */
             }
         );
+
+
+    video.onerror =
+        function() {
+
+            showError(
+                "The direct video could not be played. Check the URL, video format, CORS, and server configuration."
+            );
+
+        };
 
 }
 
@@ -558,14 +752,35 @@ function loadDirectVideo(url) {
 
 function loadURL() {
 
-    const url =
-        urlInput.value.trim();
+    hideError();
+
+
+    let url =
+        input.value.trim();
 
 
     if (!url) {
 
         showError(
-            "Please enter a video URL."
+            "Please paste a video URL."
+        );
+
+        return;
+    }
+
+
+    /*
+       YOUTUBE
+    */
+
+    const youtubeId =
+        getYouTubeId(url);
+
+
+    if (youtubeId) {
+
+        waitForYouTube(
+            youtubeId
         );
 
         return;
@@ -573,27 +788,9 @@ function loadURL() {
     }
 
 
-    hideError();
-
-
-    const youtubeID =
-        getYouTubeID(url);
-
-
-    /* YouTube */
-
-    if (youtubeID) {
-
-        loadYouTube(
-            youtubeID
-        );
-
-        return;
-
-    }
-
-
-    /* Direct video */
+    /*
+       DIRECT VIDEO
+    */
 
     if (
         isDirectVideo(url)
@@ -608,15 +805,19 @@ function loadURL() {
     }
 
 
+    /*
+       UNKNOWN
+    */
+
     showError(
-        "Unsupported URL. Paste a YouTube URL or a direct MP4/WebM video URL."
+        "Unsupported URL. Please enter a YouTube URL or a direct MP4/WebM URL."
     );
 
 }
 
 
 /* =========================================
-   BUTTON
+   LOAD BUTTON
 ========================================= */
 
 loadButton.addEventListener(
@@ -626,10 +827,10 @@ loadButton.addEventListener(
 
 
 /* =========================================
-   ENTER
+   ENTER KEY
 ========================================= */
 
-urlInput.addEventListener(
+input.addEventListener(
     "keydown",
     function(event) {
 
@@ -650,14 +851,9 @@ urlInput.addEventListener(
 ========================================= */
 
 /*
+   Example:
 
-You can also open:
-
-index.html?video=https://www.youtube.com/watch?v=VIDEO_ID
-
-OR:
-
-index.html?video=https://example.com/video.mp4
+   index.html?video=https://youtu.be/1dLm1uWpD5c
 
 */
 
@@ -667,56 +863,33 @@ const params =
     );
 
 
-const parameterVideo =
+const parameter =
     params.get(
         "video"
     );
 
 
-if (parameterVideo) {
+if (parameter) {
 
-    urlInput.value =
-        parameterVideo;
+    input.value =
+        parameter;
 
     /*
-       Wait for YouTube API if
-       the supplied URL is YouTube.
+       If YouTube, wait for
+       YouTube API.
     */
 
-    const youtubeID =
-        getYouTubeID(
-            parameterVideo
+    const id =
+        getYouTubeId(
+            parameter
         );
 
 
-    if (youtubeID) {
+    if (id) {
 
-        function waitForYouTube() {
-
-            if (
-                typeof YT !==
-                "undefined" &&
-                YT.Player
-            ) {
-
-                loadYouTube(
-                    youtubeID
-                );
-
-            }
-
-            else {
-
-                setTimeout(
-                    waitForYouTube,
-                    300
-                );
-
-            }
-
-        }
-
-        waitForYouTube();
+        waitForYouTube(
+            id
+        );
 
     }
 
