@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Server Dashboard</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #0b1020;
+            color: white;
+        }
+
+        header {
+            padding: 25px;
+            background: #11182d;
+            border-bottom: 1px solid #293451;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+
+        header p {
+            color: #8d9ab8;
+            margin: 8px 0 0;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            padding: 25px;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #11182d;
+            border: 1px solid #293451;
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            background: #00e676;
+            border-radius: 50%;
+            box-shadow: 0 0 12px #00e676;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns:
+                repeat(auto-fit, minmax(250px, 1fr));
+            gap: 18px;
+        }
+
+        .card {
+            background: #11182d;
+            border: 1px solid #293451;
+            border-radius: 16px;
+            padding: 20px;
+        }
+
+        .card h2 {
+            font-size: 17px;
+            color: #9aa8c7;
+            margin-top: 0;
+        }
+
+        .big {
+            font-size: 30px;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+
+        .small {
+            color: #8492b0;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .progress {
+            width: 100%;
+            height: 9px;
+            background: #252e46;
+            border-radius: 20px;
+            overflow: hidden;
+            margin-top: 15px;
+        }
+
+        .bar {
+            height: 100%;
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+
+        .cpu {
+            background: #4dabf7;
+        }
+
+        .ram {
+            background: #c084fc;
+        }
+
+        .disk {
+            background: #f59e0b;
+        }
+
+        .info {
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+            padding: 10px 0;
+            border-bottom: 1px solid #242d44;
+        }
+
+        .info:last-child {
+            border-bottom: none;
+        }
+
+        .label {
+            color: #8492b0;
+        }
+
+        .value {
+            text-align: right;
+            word-break: break-word;
+        }
+
+        .error {
+            display: none;
+            background: #421d25;
+            color: #ff9ca9;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        footer {
+            text-align: center;
+            color: #65728d;
+            padding: 30px;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 15px;
+            }
+
+            header h1 {
+                font-size: 23px;
+            }
+
+            .big {
+                font-size: 25px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <h1>🖥️ Server Dashboard</h1>
+    <p>Live information from the Vercel server environment</p>
+</header>
+
+<div class="container">
+
+    <div id="error" class="error">
+        Unable to connect to the server API.
+    </div>
+
+    <div class="status">
+        <div class="dot"></div>
+
+        <div>
+            <strong>Server Online</strong>
+
+            <div class="small" id="serverTime">
+                Connecting...
+            </div>
+        </div>
+    </div>
+
+    <div class="grid">
+
+        <!-- CPU -->
+
+        <div class="card">
+            <h2>⚙️ CPU Usage</h2>
+
+            <div class="big">
+                <span id="cpuUsage">--</span>%
+            </div>
+
+            <div class="small" id="cpuModel">
+                Loading...
+            </div>
+
+            <div class="progress">
+                <div id="cpuBar" class="bar cpu"></div>
+            </div>
+        </div>
+
+
+        <!-- RAM -->
+
+        <div class="card">
+            <h2>🧠 RAM Usage</h2>
+
+            <div class="big">
+                <span id="ramUsage">--</span>%
+            </div>
+
+            <div class="small">
+                <span id="ramUsed">--</span> GB used /
+                <span id="ramTotal">--</span> GB
+            </div>
+
+            <div class="progress">
+                <div id="ramBar" class="bar ram"></div>
+            </div>
+        </div>
+
+
+        <!-- DISK -->
+
+        <div class="card">
+            <h2>💾 Disk Usage</h2>
+
+            <div class="big">
+                <span id="diskUsage">--</span>%
+            </div>
+
+            <div class="small">
+                <span id="diskUsed">--</span> GB used /
+                <span id="diskTotal">--</span> GB
+            </div>
+
+            <div class="progress">
+                <div id="diskBar" class="bar disk"></div>
+            </div>
+        </div>
+
+
+        <!-- CPU INFORMATION -->
+
+        <div class="card">
+            <h2>🔧 CPU Information</h2>
+
+            <div class="info">
+                <span class="label">CPU Cores</span>
+                <span class="value" id="cores">--</span>
+            </div>
+
+            <div class="info">
+                <span class="label">CPU Threads</span>
+                <span class="value" id="threads">--</span>
+            </div>
+        </div>
+
+
+        <!-- SYSTEM -->
+
+        <div class="card">
+            <h2>🐧 System</h2>
+
+            <div class="info">
+                <span class="label">Operating System</span>
+                <span class="value" id="os">--</span>
+            </div>
+
+            <div class="info">
+                <span class="label">Kernel</span>
+                <span class="value" id="kernel">--</span>
+            </div>
+
+            <div class="info">
+                <span class="label">Architecture</span>
+                <span class="value" id="architecture">--</span>
+            </div>
+        </div>
+
+
+        <!-- HOST -->
+
+        <div class="card">
+            <h2>🌐 Host Information</h2>
+
+            <div class="info">
+                <span class="label">Hostname</span>
+                <span class="value" id="hostname">--</span>
+            </div>
+        </div>
+
+
+        <!-- PYTHON -->
+
+        <div class="card">
+            <h2>🐍 Python</h2>
+
+            <div class="big" id="python">
+                --
+            </div>
+
+            <div class="small">
+                Python runtime version
+            </div>
+        </div>
+
+
+        <!-- PLATFORM -->
+
+        <div class="card">
+            <h2>📦 Platform</h2>
+
+            <div class="small" id="platform">
+                --
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<footer>
+    Server Dashboard • Automatically refreshed every 2 seconds
+</footer>
+
+
+<script>
+
+async function updateServer() {
+
+    const errorBox = document.getElementById("error");
+
+    try {
+
+        const response = await fetch("/api", {
+            cache: "no-store"
+        });
+
+        if (!response.ok) {
+            throw new Error("API request failed");
+        }
+
+        const data = await response.json();
+
+        errorBox.style.display = "none";
+
+
+        // CPU
+
+        document.getElementById("cpuUsage").textContent =
+            data.cpu_usage;
+
+        document.getElementById("cpuBar").style.width =
+            Math.min(data.cpu_usage, 100) + "%";
+
+        document.getElementById("cpuModel").textContent =
+            data.cpu_model;
+
+
+        // RAM
+
+        document.getElementById("ramUsage").textContent =
+            data.ram_usage;
+
+        document.getElementById("ramUsed").textContent =
+            data.ram_used;
+
+        document.getElementById("ramTotal").textContent =
+            data.ram_total;
+
+        document.getElementById("ramBar").style.width =
+            Math.min(data.ram_usage, 100) + "%";
+
+
+        // Disk
+
+        document.getElementById("diskUsage").textContent =
+            data.disk_usage;
+
+        document.getElementById("diskUsed").textContent =
+            data.disk_used;
+
+        document.getElementById("diskTotal").textContent =
+            data.disk_total;
+
+        document.getElementById("diskBar").style.width =
+            Math.min(data.disk_usage, 100) + "%";
+
+
+        // CPU
+
+        document.getElementById("cores").textContent =
+            data.cpu_cores;
+
+        document.getElementById("threads").textContent =
+            data.cpu_threads;
+
+
+        // System
+
+        document.getElementById("os").textContent =
+            data.os + " " + data.os_version;
+
+        document.getElementById("kernel").textContent =
+            data.kernel;
+
+        document.getElementById("architecture").textContent =
+            data.architecture;
+
+
+        // Host
+
+        document.getElementById("hostname").textContent =
+            data.hostname;
+
+
+        // Python
+
+        document.getElementById("python").textContent =
+            "Python " + data.python;
+
+
+        // Platform
+
+        document.getElementById("platform").textContent =
+            data.platform;
+
+
+        // Time
+
+        document.getElementById("serverTime").textContent =
+            "Server time: " + data.server_time;
+
+    }
+
+    catch (error) {
+
+        console.error(error);
+
+        errorBox.style.display = "block";
+
+    }
+}
+
+
+// First request
+
+updateServer();
+
+
+// Refresh every 2 seconds
+
+setInterval(updateServer, 2000);
+
+</script>
+
+</body>
+  </html>
