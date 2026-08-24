@@ -21,13 +21,13 @@ async def submit_number(request: SearchRequest):
             page = await browser.new_page()
 
             # 1. Navigate to URL
-            await page.goto("https://google.com")
+            await page.goto("https://www.pw.live/")
 
             # 2. Fill the specific input field
-            await page.fill("#inpu2", request.number)
+            await page.fill("#pw_auth-input_mobile_number", request.number)
 
             # 3. Click the target button
-            await page.click("#btn1")
+            await page.click("#pw_auth-get_otp_button")
 
             await page.wait_for_timeout(1000)
             await browser.close()
