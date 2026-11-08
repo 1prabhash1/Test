@@ -1,0 +1,215 @@
+name: Test Chrome Extension
+
+on:
+  workflow_dispatch:
+    inputs:
+      keep_alive_minutes:
+        description: "Minutes to keep the dashboard open after the test"
+        default: "5"
+  push:
+    branches: [main]
+
+jobs:
+  test-extension:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PORT: 3000
+      EXT_PATH: ${{ github.workspace }}        # folder containing manifest.json
+      POPUP_PATH: popup.html                   # your extension's popup/page to open
+      WEB3_BTN_SELECTOR: "#web3-btn"           # selector of the web3 button
+      FILE_INPUT_SELECTOR: ""                  # optional: <input type=file> in popup
+      WAIT_FILE_MS: "600000"                   # wait up to 10 min for the file
+      KEEP_ALIVE_MIN: ${{ inputs.keep_alive_minutes || '5' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      # Chrome for Testing = latest stable Chrome that still supports --load-extension
+      - name: Install latest stable Chrome
+        run: |
+          OUT=$(npx --yes @puppeteer/browsers install chrome@stable --path "$RUNNER_TEMP/chrome" | tail -1)
+          echo "CHROME_PATH=${OUT#* }" >> "$GITHUB_ENV"
+          echo "Installed: $OUT"
+
+      - name: Install runner dependencies
+        run: |
+          mkdir -p "$RUNNER_TEMP/runner" && cd "$RUNNER_TEMP/runner"
+          npm init -y >/dev/null
+          npm i express multer puppeteer-core
+
+      - name: Write runner script
+        run: |
+          cat > "$RUNNER_TEMP/runner/run.js" <<'EOF'
+          const express = require('express');
+          const multer = require('multer');
+          const puppeteer = require('puppeteer-core');
+          const fs = require('fs');
+          const path = require('path');
+
+          const PORT = +process.env.PORT || 3000;
+          const EXT_PATH = path.resolve(process.env.EXT_PATH);
+          const UP_DIR = path.join(__dirname, 'uploads');
+          fs.mkdirSync(UP_DIR, { recursive: true });
+
+          // ---------- live log hub ----------
+          const logs = [];
+          const clients = new Set();
+          function log(src, msg) {
+            const e = { t: new Date().toISOString(), src, msg: String(msg) };
+            logs.push(e);
+            console.log('[' + src + '] ' + e.msg);
+            for (const c of clients) c.write('data: ' + JSON.stringify(e) + '\n\n');
+          }
+
+          // ---------- server (one port: upload + dashboard) ----------
+          const app = express();
+          const upload = multer({ dest: UP_DIR });
+          let resolveFile;
+          const fileReceived = new Promise(r => (resolveFile = r));
+
+          app.get('/', (req, res) => {
+            res.type('html').send(
+              '<!doctype html><meta name=viewport content="width=device-width,initial-scale=1">' +
+              '<title>Extension test</title>' +
+              '<body style="background:#111;color:#0f0;font:13px monospace;margin:0;padding:12px">' +
+              '<h3 style="color:#fff">Extension test - live logs</h3>' +
+              '<form method=post action=/upload enctype=multipart/form-data style="margin-bottom:12px">' +
+              '<input type=file name=file required> <button>Send file</button></form>' +
+              '<pre id=o style="white-space:pre-wrap"></pre>' +
+              '<script>var o=document.getElementById("o");' +
+              'new EventSource("/events").onmessage=function(e){var d=JSON.parse(e.data);' +
+              'o.textContent+=d.t.slice(11,19)+" ["+d.src+"] "+d.msg+"\\n";window.scrollTo(0,document.body.scrollHeight)}</script>'
+            );
+          });
+          app.get('/events', (req, res) => {
+            res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
+            res.flushHeaders();
+            logs.forEach(e => res.write('data: ' + JSON.stringify(e) + '\n\n'));
+            clients.add(res);
+            req.on('close', () => clients.delete(res));
+          });
+          app.post('/upload', upload.single('file'), (req, res) => {
+            if (!req.file) return res.status(400).send('no file');
+            const dest = path.join(UP_DIR, req.file.originalname);
+            fs.renameSync(req.file.path, dest);
+            log('server', 'File received: ' + req.file.originalname + ' (' + req.file.size + ' bytes)');
+            resolveFile(dest);
+            res.send('OK - file received. Watch progress on <a href="/">the dashboard</a>.');
+          });
+          app.listen(PORT, () => log('server', 'Listening on port ' + PORT));
+
+          // ---------- helpers ----------
+          const sleep = ms => new Promise(r => setTimeout(r, ms));
+          function hookPage(page, label) {
+            page.on('console', m => log(label, m.type() + ': ' + m.text()));
+            page.on('pageerror', e => log(label, 'PAGE ERROR: ' + e.message));
+          }
+
+          (async () => {
+            const browser = await puppeteer.launch({
+              executablePath: process.env.CHROME_PATH,
+              headless: false, // runs under xvfb; extensions need a real window
+              args: [
+                '--no-sandbox',
+                '--disable-extensions-except=' + EXT_PATH,
+                '--load-extension=' + EXT_PATH,
+                '--window-size=1280,900',
+              ],
+            });
+            log('runner', 'Chrome launched: ' + (await browser.version()));
+
+            // capture console of service worker / background pages
+            async function hookTarget(t) {
+              try {
+                if (t.type() === 'service_worker' || t.type() === 'background_page') {
+                  const s = await t.createCDPSession();
+                  await s.send('Runtime.enable');
+                  s.on('Runtime.consoleAPICalled', ev =>
+                    log('ext-bg', ev.type + ': ' + ev.args.map(a => a.value ?? a.description ?? '').join(' ')));
+                  s.on('Runtime.exceptionThrown', ev => log('ext-bg', 'EXCEPTION: ' + ev.exceptionDetails.text));
+                } else if (t.type() === 'page') {
+                  const p = await t.page();
+                  if (p) hookPage(p, 'page');
+                }
+              } catch (e) { /* target closed */ }
+            }
+            browser.on('targetcreated', hookTarget);
+            (await browser.targets()).forEach(hookTarget);
+
+            const swTarget = await browser.waitForTarget(
+              t => (t.type() === 'service_worker' || t.type() === 'background_page') &&
+                   t.url().startsWith('chrome-extension://'), { timeout: 30000 });
+            const extId = new URL(swTarget.url()).host;
+            log('runner', 'Extension loaded, id = ' + extId);
+
+            const popup = await browser.newPage();
+            hookPage(popup, 'popup');
+            await popup.goto('chrome-extension://' + extId + '/' + process.env.POPUP_PATH);
+            log('runner', 'Opened ' + process.env.POPUP_PATH + '. Waiting for file on /upload ...');
+
+            const file = await Promise.race([
+              fileReceived,
+              sleep(+process.env.WAIT_FILE_MS).then(() => null),
+            ]);
+            if (!file) { log('runner', 'Timed out waiting for file'); await browser.close(); process.exit(1); }
+
+            if (process.env.FILE_INPUT_SELECTOR) {
+              const input = await popup.waitForSelector(process.env.FILE_INPUT_SELECTOR);
+              await input.uploadFile(file);
+              log('runner', 'File handed to extension input');
+            }
+
+            log('runner', 'Clicking web3 button: ' + process.env.WEB3_BTN_SELECTOR);
+            await popup.waitForSelector(process.env.WEB3_BTN_SELECTOR, { timeout: 30000 });
+            await popup.click(process.env.WEB3_BTN_SELECTOR);
+            log('runner', 'Button clicked, extension is working...');
+
+            await sleep(30000); // let the extension run; adjust or wait for a selector instead
+            await popup.screenshot({ path: path.join(__dirname, 'final.png') });
+            log('runner', 'Test finished. Dashboard stays open for ' + process.env.KEEP_ALIVE_MIN + ' min');
+
+            await sleep(+process.env.KEEP_ALIVE_MIN * 60000);
+            await browser.close();
+            process.exit(0);
+          })().catch(e => { log('runner', 'FATAL: ' + e.stack); process.exit(1); });
+          EOF
+
+      - name: Run test with public tunnel
+        run: |
+          cd "$RUNNER_TEMP/runner"
+
+          # public URL for port 3000 (GitHub runners are not reachable from outside)
+          curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+          chmod +x cloudflared
+
+          xvfb-run -a --server-args="-screen 0 1280x960x24" node run.js &
+          APP_PID=$!
+          sleep 5
+
+          ./cloudflared tunnel --url http://localhost:$PORT > tunnel.log 2>&1 &
+          for i in $(seq 1 30); do
+            URL=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' tunnel.log | head -1 || true)
+            [ -n "$URL" ] && break
+            sleep 1
+          done
+          echo "Dashboard + upload URL: $URL"
+          echo "### Open this: $URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "Upload a file to \`$URL/upload\` (multipart field: \`file\`), e.g. \`curl -F file=@a.txt $URL/upload\`" >> "$GITHUB_STEP_SUMMARY"
+
+          wait $APP_PID
+
+      - name: Upload screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-screenshot
+          path: ${{ runner.temp }}/runner/final.png
+          if-no-files-found: ignore
