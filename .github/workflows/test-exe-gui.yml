@@ -1,0 +1,204 @@
+name: Test EXE with Browser GUI
+
+# Put this file at: .github/workflows/test-exe-gui.yml
+# Put your .exe in the repo (e.g. app.exe), then run from Actions tab > Run workflow.
+# Open the printed URL on your Android phone's browser to use the app.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag that holds your .exe (e.g. v1)"
+        required: true
+        default: "v1"
+      exe_path:
+        description: "Exe file name as attached to the release"
+        required: true
+        default: "app.exe"
+      exe_args:
+        description: "Optional arguments for the exe"
+        required: false
+        default: ""
+      minutes:
+        description: "How long to keep the session alive (max 350)"
+        required: true
+        default: "30"
+      resolution:
+        description: "Screen resolution (WIDTHxHEIGHT)"
+        required: true
+        default: "1280x720"
+
+jobs:
+  run-gui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      DISPLAY: ":99"
+      WINEDEBUG: "-all"
+      # Set a repo secret named VNC_PASSWORD. Falls back to a default if missing.
+      VNC_PASSWORD: ${{ secrets.VNC_PASSWORD || 'changeme123' }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install Wine, virtual display, VNC and noVNC
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            wine wine64 wine32:i386 winbind \
+            xvfb x11vnc fluxbox novnc websockify \
+            xterm curl ca-certificates
+          sudo ln -sf /usr/share/novnc/vnc.html /usr/share/novnc/index.html
+
+      - name: Start virtual desktop
+        run: |
+          RES="${{ inputs.resolution }}"
+          Xvfb :99 -screen 0 ${RES}x24 &
+          sleep 2
+          fluxbox > /tmp/fluxbox.log 2>&1 &
+          sleep 1
+          mkdir -p ~/.vnc
+          # VNC only uses the first 8 characters of a password
+          PW="${VNC_PASSWORD:0:8}"
+          x11vnc -storepasswd "$PW" ~/.vnc/passwd
+          x11vnc -display :99 -rfbauth ~/.vnc/passwd -forever -shared -localhost -rfbport 5900 \
+            > /tmp/x11vnc.log 2>&1 &
+          websockify --web /usr/share/novnc 6080 localhost:5900 > /tmp/websockify.log 2>&1 &
+          sleep 2
+
+      - name: Start public tunnel (Cloudflare quick tunnel)
+        run: |
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+          chmod +x cloudflared
+          ./cloudflared tunnel --url http://localhost:6080 --no-autoupdate > /tmp/tunnel.log 2>&1 &
+          for i in $(seq 1 30); do
+            URL=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' /tmp/tunnel.log | head -n1 || true)
+            [ -n "$URL" ] && break
+            sleep 2
+          done
+          if [ -z "$URL" ]; then
+            echo "Tunnel failed to start"; cat /tmp/tunnel.log; exit 1
+          fi
+          FULL="$URL/vnc.html?autoconnect=true&resize=scale"
+          echo "=============================================="
+          echo "OPEN THIS ON YOUR PHONE:"
+          echo "$FULL"
+          echo "Password: first 8 characters of your VNC_PASSWORD secret"
+          echo "(default if no secret set: changeme)"
+          echo "=============================================="
+          echo "### Open on phone: [$FULL]($FULL)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Download EXE from release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "${{ inputs.release_tag }}" \
+            --repo "${{ github.repository }}" \
+            --pattern "${{ inputs.exe_path }}" \
+            --dir . --clobber
+          ls -lh
+
+      - name: Launch the EXE
+        run: |
+          wineboot --init || true
+          EXE="${{ inputs.exe_path }}"
+          if [ ! -f "$EXE" ]; then echo "File not found: $EXE"; ls -la; exit 1; fi
+          wine "$EXE" ${{ inputs.exe_args }} > /tmp/app.log 2>&1 &
+          sleep 3
+
+      - name: Start restart page (second tunnel)
+        env:
+          EXE_PATH: ${{ inputs.exe_path }}
+          EXE_ARGS: ${{ inputs.exe_args }}
+        run: |
+          cat > /tmp/restart_server.py <<'PY'
+          import os, time, shlex, hmac, subprocess
+          from html import escape
+          from http.server import BaseHTTPRequestHandler, HTTPServer
+          from urllib.parse import parse_qs
+
+          KEY = os.environ["VNC_PASSWORD"]
+          EXE = os.environ["EXE_PATH"]
+          ARGS = shlex.split(os.environ.get("EXE_ARGS", ""))
+
+          def running():
+              return subprocess.run(["pgrep", "-f", EXE], capture_output=True).returncode == 0
+
+          def launch():
+              subprocess.run(["wineserver", "-k"], capture_output=True)
+              time.sleep(1)
+              subprocess.Popen(["wine", EXE] + ARGS,
+                               stdout=open("/tmp/app.log", "a"),
+                               stderr=subprocess.STDOUT,
+                               start_new_session=True)
+
+          def page(msg=""):
+              state = "RUNNING" if running() else "NOT RUNNING"
+              return f"""<!doctype html><meta name=viewport content="width=device-width,initial-scale=1">
+          <body style="font-family:sans-serif;max-width:420px;margin:40px auto;padding:0 16px">
+          <h2>EXE control</h2>
+          <p>Status: <b>{state}</b></p>
+          <p>{escape(msg)}</p>
+          <form method=post action=/restart>
+          <input type=password name=key placeholder="Password" style="width:100%;padding:12px;font-size:16px"><br><br>
+          <button style="width:100%;padding:14px;font-size:18px">Restart app</button>
+          </form>
+          <p><a href=/>Refresh status</a></p></body>""".encode()
+
+          class H(BaseHTTPRequestHandler):
+              def _send(self, body, code=200):
+                  self.send_response(code)
+                  self.send_header("Content-Type", "text/html; charset=utf-8")
+                  self.end_headers()
+                  self.wfile.write(body)
+
+              def do_GET(self):
+                  self._send(page())
+
+              def do_POST(self):
+                  n = int(self.headers.get("Content-Length", 0))
+                  data = parse_qs(self.rfile.read(n).decode())
+                  key = data.get("key", [""])[0]
+                  if hmac.compare_digest(key.encode(), KEY.encode()):
+                      launch()
+                      time.sleep(3)
+                      self._send(page("App restarted."))
+                  else:
+                      self._send(page("Wrong password."), 403)
+
+              def log_message(self, *a):
+                  pass
+
+          HTTPServer(("127.0.0.1", 8080), H).serve_forever()
+          PY
+          nohup python3 /tmp/restart_server.py > /tmp/restart.log 2>&1 &
+          sleep 1
+          ./cloudflared tunnel --url http://localhost:8080 --no-autoupdate > /tmp/tunnel2.log 2>&1 &
+          for i in $(seq 1 30); do
+            URL2=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' /tmp/tunnel2.log | head -n1 || true)
+            [ -n "$URL2" ] && break
+            sleep 2
+          done
+          if [ -z "$URL2" ]; then
+            echo "Restart tunnel failed"; cat /tmp/tunnel2.log; exit 1
+          fi
+          echo "=============================================="
+          echo "RESTART PAGE (open on phone, enter your password):"
+          echo "$URL2"
+          echo "=============================================="
+          echo "### Restart app: [$URL2]($URL2)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep session alive
+        run: |
+          MIN="${{ inputs.minutes }}"
+          [ "$MIN" -gt 350 ] && MIN=350
+          echo "Session open for $MIN minutes..."
+          sleep $((MIN * 60))
+
+      - name: Show logs on finish
+        if: always()
+        run: |
+          echo "--- app log ---";      cat /tmp/app.log || true
+          echo "--- x11vnc log ---";   tail -n 20 /tmp/x11vnc.log || true
