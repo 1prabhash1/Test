@@ -7,10 +7,14 @@ name: Test EXE with Browser GUI
 on:
   workflow_dispatch:
     inputs:
-      exe_path:
-        description: "Path of the .exe inside the repo"
+      release_tag:
+        description: "Release tag that holds your .exe (e.g. v1)"
         required: true
-        default: "app.exe"
+        default: "v1"
+      exe_path:
+        description: "Exe file name as attached to the release"
+        required: true
+        default: "LOVE.TS.Setup.1.0.1.exe"
       exe_args:
         description: "Optional arguments for the exe"
         required: false
@@ -82,6 +86,16 @@ jobs:
           echo "Password: (your VNC_PASSWORD secret)"
           echo "=============================================="
           echo "### Open on phone: [$FULL]($FULL)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Download EXE from release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "${{ inputs.release_tag }}" \
+            --repo "${{ github.repository }}" \
+            --pattern "${{ inputs.exe_path }}" \
+            --dir . --clobber
+          ls -lh
 
       - name: Launch the EXE
         run: |
