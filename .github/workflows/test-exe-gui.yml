@@ -1,0 +1,122 @@
+name: Test EXE with Browser GUI
+
+# Put this file at: .github/workflows/test-exe-gui.yml
+# Put your .exe in the repo (e.g. app.exe), then run from Actions tab > Run workflow.
+# Open the printed URL on your Android phone's browser to use the app.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag that holds your .exe (e.g. v1)"
+        required: true
+        default: "v1"
+      exe_path:
+        description: "Exe file name as attached to the release"
+        required: true
+        default: "app.exe"
+      exe_args:
+        description: "Optional arguments for the exe"
+        required: false
+        default: ""
+      minutes:
+        description: "How long to keep the session alive (max 350)"
+        required: true
+        default: "30"
+      resolution:
+        description: "Screen resolution (WIDTHxHEIGHT)"
+        required: true
+        default: "1280x720"
+
+jobs:
+  run-gui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      DISPLAY: ":99"
+      WINEDEBUG: "-all"
+      # Set a repo secret named VNC_PASSWORD. Falls back to a default if missing.
+      VNC_PASSWORD: ${{ secrets.VNC_PASSWORD || 'changeme123' }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install Wine, virtual display, VNC and noVNC
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            wine wine64 wine32:i386 winbind \
+            xvfb x11vnc fluxbox novnc websockify \
+            xterm curl ca-certificates
+          sudo ln -sf /usr/share/novnc/vnc.html /usr/share/novnc/index.html
+
+      - name: Start virtual desktop
+        run: |
+          RES="${{ inputs.resolution }}"
+          Xvfb :99 -screen 0 ${RES}x24 &
+          sleep 2
+          fluxbox > /tmp/fluxbox.log 2>&1 &
+          sleep 1
+          mkdir -p ~/.vnc
+          # VNC only uses the first 8 characters of a password
+          PW="${VNC_PASSWORD:0:8}"
+          x11vnc -storepasswd "$PW" ~/.vnc/passwd
+          x11vnc -display :99 -rfbauth ~/.vnc/passwd -forever -shared -localhost -rfbport 5900 \
+            > /tmp/x11vnc.log 2>&1 &
+          websockify --web /usr/share/novnc 6080 localhost:5900 > /tmp/websockify.log 2>&1 &
+          sleep 2
+
+      - name: Start public tunnel (Cloudflare quick tunnel)
+        run: |
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+          chmod +x cloudflared
+          ./cloudflared tunnel --url http://localhost:6080 --no-autoupdate > /tmp/tunnel.log 2>&1 &
+          for i in $(seq 1 30); do
+            URL=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' /tmp/tunnel.log | head -n1 || true)
+            [ -n "$URL" ] && break
+            sleep 2
+          done
+          if [ -z "$URL" ]; then
+            echo "Tunnel failed to start"; cat /tmp/tunnel.log; exit 1
+          fi
+          FULL="$URL/vnc.html?autoconnect=true&resize=scale"
+          echo "=============================================="
+          echo "OPEN THIS ON YOUR PHONE:"
+          echo "$FULL"
+          echo "Password: first 8 characters of your VNC_PASSWORD secret"
+          echo "(default if no secret set: changeme)"
+          echo "=============================================="
+          echo "### Open on phone: [$FULL]($FULL)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Download EXE from release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "${{ inputs.release_tag }}" \
+            --repo "${{ github.repository }}" \
+            --pattern "${{ inputs.exe_path }}" \
+            --dir . --clobber
+          ls -lh
+
+      - name: Launch the EXE
+        run: |
+          wineboot --init || true
+          EXE="${{ inputs.exe_path }}"
+          if [ ! -f "$EXE" ]; then echo "File not found: $EXE"; ls -la; exit 1; fi
+          wine "$EXE" ${{ inputs.exe_args }} > /tmp/app.log 2>&1 &
+          sleep 3
+
+      - name: Keep session alive
+        run: |
+          MIN="${{ inputs.minutes }}"
+          [ "$MIN" -gt 350 ] && MIN=350
+          echo "Session open for $MIN minutes..."
+          sleep $((MIN * 60))
+
+      - name: Show logs on finish
+        if: always()
+        run: |
+          echo "--- app log ---";      cat /tmp/app.log || true
+          echo "--- x11vnc log ---";   tail -n 20 /tmp/x11vnc.log || true
